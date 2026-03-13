@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://nirmaan-cm302-lakshya.onrender.com";
 
 export async function apiRequest(path, options = {}) {
   const token = localStorage.getItem("lakshya_token");
