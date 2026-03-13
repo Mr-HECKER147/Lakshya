@@ -15,8 +15,11 @@ const quickActions = [
 function DashboardPage() {
   const { user } = useAuth();
   const [dashboard, setDashboard] = useState(fallbackDashboard);
-  const completedSubjects = dashboard.studyProgress.filter((subject) => subject.value >= 80).length;
-  const nextExam = dashboard.upcomingExams[0];
+
+  const studyProgress = dashboard?.studyProgress ?? [];
+  const completedSubjects = studyProgress.filter((subject) => subject.value >= 80).length;
+  const upcomingExams = dashboard?.upcomingExams ?? [];
+  const nextExam = upcomingExams[0];
 
   useEffect(() => {
     Promise.allSettled([studyPlanApi.today(), examApi.upcoming()]).then(([planResult, examsResult]) => {
