@@ -1,4 +1,8 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://nirmaan-cm302-lakshya.onrender.com";
+// Determine the API base URL.
+// Prefer VITE_API_URL; fall back to Render and always include /api.
+const rawApiUrl = import.meta.env.VITE_API_URL || "https://nirmaan-cm302-lakshya.onrender.com";
+const normalizedApiUrl = rawApiUrl.replace(/\/+$/, "");
+const API_BASE_URL = normalizedApiUrl.endsWith("/api") ? normalizedApiUrl : `${normalizedApiUrl}/api`;
 
 export async function apiRequest(path, options = {}) {
   const token = localStorage.getItem("lakshya_token");
