@@ -11,19 +11,26 @@ export async function apiRequest(path, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers
-  });
+  const url = `${API_BASE_URL}${path}`;
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers
+    });
 
-  const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch(() => ({}));
 
-  if (!response.ok) {
-    throw new Error(data.message || data.error || "Request failed");
+    if (!response.ok) {
+      const detail = data.message || data.error || response.statusText || "Request failed";
+      throw new Error(`Request failed (${response.status}) ${detail} — ${url}`);
+    }
+
+    return data;
+  } catch (err) {
+    throw new Error(`${err.message || "Request failed"} — ${url}`);
   }
-
-  return data;
 }
+
 
 export const authApi = {
   login: (payload) => apiRequest("/auth/login", { method: "POST", body: JSON.stringify(payload) }),
