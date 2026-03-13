@@ -24,9 +24,9 @@ function DashboardPage() {
   useEffect(() => {
     Promise.allSettled([studyPlanApi.today(), examApi.upcoming()]).then(([planResult, examsResult]) => {
       setDashboard({
-        studyProgress: planResult.status === "fulfilled" ? planResult.value.studyProgress : fallbackDashboard.studyProgress,
-        todayPlan: planResult.status === "fulfilled" ? planResult.value.todayPlan : fallbackDashboard.todayPlan,
-        upcomingExams: examsResult.status === "fulfilled" ? examsResult.value.exams : fallbackDashboard.upcomingExams
+        studyProgress: planResult.status === "fulfilled" ? (planResult.value?.studyProgress || fallbackDashboard.studyProgress) : fallbackDashboard.studyProgress,
+        todayPlan: planResult.status === "fulfilled" ? (planResult.value?.todayPlan || fallbackDashboard.todayPlan) : fallbackDashboard.todayPlan,
+        upcomingExams: examsResult.status === "fulfilled" ? (examsResult.value?.exams || fallbackDashboard.upcomingExams) : fallbackDashboard.upcomingExams
       });
     });
   }, []);
