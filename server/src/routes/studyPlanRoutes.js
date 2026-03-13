@@ -1,7 +1,8 @@
 // routes/studyPlanRoutes.js
 const express = require("express");
 const multer = require("multer");
-const { PDFParse } = require("pdf-parse");
+const pdfParse = require("pdf-parse");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const StudyPlan = require("../models/StudyPlan"); // adjust path if different
 
 const router = express.Router();
@@ -9,48 +10,17 @@ const router = express.Router();
 // File upload in memory
 const upload = multer({ storage: multer.memoryStorage() });
 
-function inferSubject(line) {
-  const normalized = line.toLowerCase();
+// Gemini setup
+const apiKey = process.env.GEMINI_API_KEY;
+let model = null;
 
-  if (/(algebra|calculus|geometry|trigonometry|mathematics|math)/.test(normalized)) {
-    return "Mathematics";
-  }
-
-  if (/(physics|motion|force|energy|electric|magnet|wave)/.test(normalized)) {
-    return "Physics";
-  }
-
-  if (/(chemistry|atom|molecule|reaction|acid|base|organic)/.test(normalized)) {
-    return "Chemistry";
-  }
-
-  if (/(biology|cell|genetics|human body|ecosystem|plant|animal)/.test(normalized)) {
-    return "Biology";
-  }
-
-  return "General";
-}
-
-function topicLineFromText(line, index) {
-  const cleanLine = line.replace(/\s+/g, " ").trim();
-  const subject = inferSubject(cleanLine);
-  const chapter = `Chapter ${index + 1}`;
-  const topic = cleanLine.slice(0, 80);
-  const minutes = cleanLine.length > 90 ? 90 : cleanLine.length > 45 ? 60 : 45;
-  const priority = index < 3 ? "high" : index < 7 ? "medium" : "low";
-
-  return `${subject} | ${chapter} | ${topic} | ${minutes} | ${priority}`;
-}
-
-function extractTopicLines(text) {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length >= 8)
-    .filter((line) => /[a-zA-Z]/.test(line))
-    .filter((line) => !/^page\s+\d+/i.test(line))
-    .slice(0, 12)
-    .map(topicLineFromText);
+if (!apiKey) {
+  console.warn("GEMINI_API_KEY missing. Add it to .env");
+} else if (apiKey === "YOUR_GEMINI_API_KEY_HERE") {
+  console.warn("GEMINI_API_KEY is a placeholder. Update it in .env");
+} else {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 }
 
 // Build a day schedule: takes topics lines and converts to timed sessions
@@ -105,23 +75,42 @@ function buildDaySchedule(studyDate, startTime, breakMinutes, topics, reminderLe
   return { sessions, totalMinutes };
 }
 
-// Route 1: upload PDF and turn extracted text into topic lines without an AI dependency
+// Route 1: upload PDF, extract text, ask Gemini to create topic lines
 router.post("/from-pdf", upload.single("file"), async (req, res) => {
   try {
+    if (!model) {
+      return res.status(503).json({ error: "GEMINI_API_KEY missing. Add it to server/.env" });
+    }
+
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    const parser = new PDFParse({ data: req.file.buffer });
-    const pdfData = await parser.getText();
+    const pdfData = await pdfParse(req.file.buffer);
     const text = pdfData.text || "";
-    const topicLines = extractTopicLines(text);
 
-    if (!topicLines.length) {
-      return res.status(400).json({ error: "Could not extract usable study topics from this PDF" });
-    }
+    const prompt = `
+You are an AI study planner. The user gives you their syllabus text from a PDF.
+Read it and output study topics, one per line, in exactly this format:
 
-    return res.json({ topicsText: topicLines.join("\n") });
+Subject | Chapter | Topic | Minutes | Priority
+
+Rules:
+- Use simple subject names (Physics, Mathematics, Chemistry, etc.).
+- Minutes should be a reasonable focus block (45, 60, or 90).
+- Priority must be one of: high, medium, low.
+- Do NOT add explanations, bullets, numbering, or extra text.
+- Output ONLY the lines in that format.
+
+Syllabus:
+"""${text}"""
+`;
+
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const raw = response.text ? response.text() : "";
+
+    return res.json({ topicsText: raw.trim() });
   } catch (err) {
     console.error("from-pdf error:", err);
     return res.status(500).json({ error: "Failed to process PDF" });
